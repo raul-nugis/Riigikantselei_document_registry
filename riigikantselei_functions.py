@@ -2,7 +2,9 @@ print(
 'Functions defined:\n\n',
 'get_web_contents(link)\t\t\treturns "contents"\n',
 'get_links(soup)\t\t\treturns "links"\n',
-'parse_entry(contents, url, counter)\treturns "dataframe"'
+'parse_entry(contents, url, counter)\treturns "dataframe"\n',
+'generate_hexes(hex_code = "37E2A2")\treturns "hex links"\n',
+'scrape_web(links)\t\t\tsaves web scraped contents to Excel file'
 )
 
 def get_web_contents(link):
@@ -215,3 +217,73 @@ def parse_entry(contents, url, counter):
     df.at[counter, 'AK'] = classified
     
     return df
+    
+def generate_hexes(hex_code = '37E2A2'):
+    
+    ''' Generate hexes for links'''
+
+    selection = [hex(number).split('x')[-1] for number in range(0,256)]
+    selection = ['0' + number.upper() if len(number) == 1 else number.upper() for number in selection]
+
+    generated_links = []
+
+    base = 'https://dhs.riigikantselei.ee'
+    iterative_part_numbers = '/avalikteave.nsf/documents/NT'#003822' # two figures are missing
+
+    for i in range(16341):
+        generated_number = '00' + str(hex(int(hex_code, 16) + i)).upper().split('X')[-1]
+        generated_link = base + iterative_part_numbers + generated_number
+        
+        if generated_link not in generated_links:
+            generated_links.append(generated_link)
+            
+    return generated_links
+    
+def scrape_web(generated_links):
+
+    import time
+    from datetime import datetime
+    import pandas as pd
+    from bs4 import BeautifulSoup
+
+    collected_entries = pd.DataFrame()
+
+    counter = 0
+    iterator = 0
+
+    print('Commencing scraping...', datetime.now().strftime("%H:%M:%S"))
+
+    for l in generated_links:
+
+        df = pd.DataFrame()
+        
+        try:
+            contents = get_web_contents(l)
+            df = parse_entry(contents, l, iterator)
+            
+            if counter == 0:
+                collected_entries = df
+            else:
+                collected_entries = collected_entries.append(df)
+            
+            iterator += 1
+        
+        except Exception as e:
+            time.sleep(.5)
+            pass
+        
+        if iterator == 100:
+            now = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+            filename = now + '_' + str(counter) + '_temp_.xlsx'
+            collected_entries.to_excel(filename)
+            print('Saving..', filename, 'on', str(counter), 'iteration', datetime.now().strftime("%H:%M:%S"))
+            iterator = 0
+            time.sleep(5)
+            
+        counter += 1
+        
+    now = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+    filename = now + '_' + str(counter) + '_FINAL_.xlsx'
+    collected_entries.to_excel(filename)
+    print('Saving..', filename, 'on', str(counter), 'iteration')
+    print('Scraping completed with', str(counter), 'runs altogether', str(len(collected_entries)), 'collected', datetime.now().strftime("%H:%M:%S"))
